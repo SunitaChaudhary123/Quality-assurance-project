@@ -102,14 +102,14 @@ Rules marked **[CONFIRMED]** represent verified behavior in current application 
 
 ## 4. Seller Side Business Rules
 
-### BR-SEL-001: Subscription Plan Listing Limit Enforcement
-- **Module:** Subscription & Billing / Sell Equipment
+### BR-SEL-001: Subscription Plan Listing Limit Enforcement (Inventory Quota)
+- **Module:** Subscription & Billing / Sell Equipment / Inventory
 - **Status:** [CONFIRMED]
-- **Rule Statement:** A seller cannot publish more active listings than permitted by their current subscription tier:
-  - `Essential Plan`: Strict cap (e.g., 5 active listings).
-  - `Pro Plan`: Cap (e.g., 25 active listings).
-  - `Elite Plan`: Unlimited / Custom commercial cap.
-- **Enforcement:** Enforced at both UI layer via `sellerPlanLimitGuard` and backend API layer; attempting to publish listing N+1 returns an entitlement limit exception.
+- **Rule Statement:** A seller cannot create or hold more active listings in inventory than permitted by their current subscription tier:
+  - `Essential Plan` ($0 / Free): Strictly limited to **10 listings** in inventory.
+  - `Pro Plan` ($149): Up to **50 listings** in inventory.
+  - `Elite Plan` ($249): **Unlimited listings** in inventory.
+- **Enforcement:** Enforced at both UI layer via `sellerPlanLimitGuard` and backend API layer; attempting to add/publish listing N+1 beyond the plan quota returns an entitlement limit exception and prompts the seller to upgrade their plan.
 
 ### BR-SEL-002: Plan-Based Transaction Type Restrictions
 - **Module:** Sell Equipment / Subscription & Billing
@@ -117,21 +117,49 @@ Rules marked **[CONFIRMED]** represent verified behavior in current application 
 - **Rule Statement:** The ability to publish non-sale transaction types is restricted by subscription tier:
   - `Sell`: Allowed on all tiers (Essential, Pro, Elite).
   - `Rent / Lease`: Restricted to Pro and Elite tiers.
-  - `Auction`: Restricted strictly to Elite tier.
+  - `Auction`: Restricted strictly to pro Elite tier.
 - **Enforcement:** The listing creation wizard disables or hides Auction/Rent switches for Essential sellers; backend rejects payloads containing `isForAuction: true` from unauthorized tiers.
 
 ### BR-SEL-003: Mandatory Listing Attributes
 - **Module:** Sell Equipment / Inventory
 - **Status:** [CONFIRMED]
 - **Rule Statement:** Every equipment listing must contain valid core metadata before it can transition to `Published` status:
-  - Title (5 to 150 characters).
-  - Valid Category & Subcategory selection.
+  - Product Classification.
+  - Category Selection.
+  - Manufacturer / Make.
+  - Model.
   - Manufacturing Year (Valid past 4-digit year up to Current Year + 1).
-  - Manufacturer / Make and Model.
-  - Physical Location (Associated Yard or valid Address/Zip).
-  - Minimum of 1 uploaded photograph.
   - Asking Price > 0 (unless "Call for Price" flag is true).
-- **Enforcement:** Step-by-step wizard disables the "Publish" button until all validation conditions are met.
+  - Physical Location (Associated Yard or valid Address/Zip).
+  - Media / Images (Must have at least 1 image uploaded; maximum quota is governed by the seller's active plan per **BR-SEL-014**).
+- **Enforcement:** Step-by-step wizard disables the "Publish" button until all mandatory fields and validation conditions are met.
+
+### BR-SEL-014: Plan-Based Media Upload Limits (Images & Video)
+- **Module:** Sell Equipment / Inventory / Subscription & Billing
+- **Status:** [CONFIRMED]
+- **Rule Statement:** The allowed number of product images and video attachments per listing depends strictly on the seller's subscription plan tier:
+  - `Essential Plan` ($0 / Free): Maximum **5 images**, **0 videos** (video upload disabled/not allowed).
+  - `Pro Plan` ($149): Maximum **20 images**, up to **1 video**.
+  - `Elite Plan` ($249): Maximum **50 images**, up to **5 videos**.
+- **Enforcement:** Enforced in the listing creation/edit wizard UI (media uploader disables further additions once tier limit is reached) and validated on backend API endpoints.
+
+### BR-SEL-015: SEO Title and Meta Title Customization Privileges
+- **Module:** Sell Equipment / Inventory / SEO
+- **Status:** [CONFIRMED]
+- **Rule Statement:** Customization of SEO Title and Meta Title fields is restricted based on the seller's subscription tier:
+  - `Essential Plan`: Locked / read-only (uses platform auto-generated default SEO values).
+  - `Pro Plan`: Enabled (sellers can edit and customize SEO Title and Meta Title).
+  - `Elite Plan`: Enabled (sellers can edit and customize SEO Title and Meta Title).
+- **Enforcement:** UI disables/hides the SEO metadata input fields for Essential Plan users; backend API rejects manual SEO payload updates if the seller account does not hold an active Pro or Elite subscription.
+
+### BR-SEL-016: Post-Creation Listing Publish Options & Promotion Plans
+- **Module:** Sell Equipment / Boost Listings
+- **Status:** [CONFIRMED]
+- **Rule Statement:** Upon clicking the "Publish Listing" button, the seller is presented with three distinct publishing/listing plan options:
+  1. **Free Plan ($0):** Standard listing submitted with `Pending Approval` status (requires administrative/moderation review before becoming publicly active).
+  2. **Pro Listing Boost Plan ($49.99):** Provides a 30-day top-ranking boost in search/category results ("Top in Products" placement).
+  3. **Elite Listing Plan ($99.99):** Premium plan offering enhanced product availability and prime visibility for 14 days ("Best Plan for 14 Days More Product Availability").
+- **Enforcement:** After clicking "Publish Listing", a modal/checkout step prompts selection among the three options. Selection of paid plans redirects to secure payment flow before activating the respective boost/availability privileges; Free plan sets listing status to `Pending Approval`.
 
 ### BR-SEL-004: Listing Ownership & Modification Rights
 - **Module:** Inventory / Sell Equipment
@@ -160,11 +188,11 @@ Rules marked **[CONFIRMED]** represent verified behavior in current application 
 ### BR-SEL-008: Staff Seat Limit Enforcement
 - **Module:** Staff Management
 - **Status:** [CONFIRMED]
-- **Rule Statement:** The number of staff accounts an organization can invite is bounded by the subscription tier plan allowance:
-  - `Essential`: 0 or 1 user (Owner only).
-  - `Pro`: Up to 3 staff seats.
-  - `Elite`: Up to 10 staff seats [NEEDS VERIFICATION].
-- **Enforcement:** The "Add Team Member" button is disabled and route `/seller/team/add` is blocked by `sellerStaffPlanLimitGuard` when seat quota is exhausted.
+- **Rule Statement:** The number of staff accounts an organization can invite or maintain is bounded strictly by the subscription tier plan allowance:
+  - `Essential Plan` ($0 / Free): Allows adding only **1 user** (Owner / single user).
+  - `Pro Plan` ($149): Allows adding up to **5 users** (staff members).
+  - `Elite Plan` ($249): Allows adding **unlimited staff members**.
+- **Enforcement:** The "Add Team Member" button is disabled and route `/seller/team/add` is blocked by `sellerStaffPlanLimitGuard` when seat quota is reached; backend API returns HTTP 403 / Plan Limit Exceeded on invitation attempts beyond the plan cap.
 
 ### BR-SEL-009: Call Forwarding Number Validation
 - **Module:** Call & Line
@@ -195,3 +223,36 @@ Rules marked **[CONFIRMED]** represent verified behavior in current application 
 - **Status:** [NEEDS VERIFICATION]
 - **Rule Statement:** When a subscription renewal invoice fails, the seller account enters a 7-day grace period. If unpaid after 7 days, active listings are automatically shifted from `Active` to `Unpublished / Suspended`.
 - **Enforcement:** Scheduled daily billing reconciliation background job.
+
+### BR-SEL-017: Subscription Plan Pricing & Billing Cadence
+- **Module:** Subscription & Billing
+- **Status:** [CONFIRMED]
+- **Rule Statement:** Seller subscription plans are offered under Monthly and Annual billing cadences with predetermined pricing structures and annual discounts:
+  - **Monthly Billing:**
+    - `Essential Plan`: **$0** (Free).
+    - `Pro Plan`: **$149 / month**.
+    - `Elite Plan`: **$249 / month**.
+  - **Annual Billing (Includes ~17% annual discount):**
+    - `Essential Plan`: **$0** (Free).
+    - `Pro Plan`: **$1,484 / year** (Discounted from standard base price of $1,788 at ~17% off).
+    - `Elite Plan`: **$2,480 / year** (Discounted from standard base price of $2,988 at ~17% off).
+- **Enforcement:** The subscription checkout UI displays toggleable Monthly/Annual pricing with calculated savings; Stripe Price IDs map strictly to these amounts.
+
+### BR-SEL-018: Promo Code Redemption & Discount Calculation
+- **Module:** Subscription & Billing / Checkout
+- **Status:** [CONFIRMED]
+- **Rule Statement:** Sellers can apply promotional discount coupon codes during checkout for both Monthly and Annual paid plans:
+  - Promo codes support two distinct discount mechanisms:
+    1. **Percentage Discount (`%`):** Deducts a designated percentage from the recurring invoice total.
+    2. **Fixed Amount Discount (`$`):** Deducts a specified flat dollar value from the invoice amount.
+  - Promo code discounts can never reduce an invoice total below $0.00.
+- **Enforcement:** Checkout wizard validates coupon validity via API call before checkout finalization; discounts are registered and applied at the Stripe subscription/invoice item level.
+
+### BR-SEL-019: Subscription Plan Upgrade, Downgrade & Cancellation Policy
+- **Module:** Subscription & Billing
+- **Status:** [CONFIRMED]
+- **Rule Statement:** Tier transitions and plan cancellations follow clear lifecycle and proration boundaries:
+  - **Immediate Upgrade:** A seller can upgrade to any higher tier at any time. The upgrade takes effect immediately upon successful payment verification.
+  - **Scheduled Downgrade:** When a seller downgrades to a lower-tier plan, the downgrade does **not** take effect immediately; current plan privileges remain active until the end of the current paid billing period (`effectiveEndOfPeriod`), transitioning at the next billing renewal date.
+  - **Instant Cancellation:** The platform provides an option for immediate subscription cancellation (`cancelImmediately`), terminating access/paid entitlements on demand, alongside standard end-of-period cancellation.
+- **Enforcement:** Stripe Subscription update API handles immediate pro-rated upgrades and sets `cancel_at_period_end = true` (or updates upcoming subscription schedule) for downgrades; instant cancellation triggers immediate cancellation via Stripe API and shifts seller role entitlements to the Free Essential plan tier.
